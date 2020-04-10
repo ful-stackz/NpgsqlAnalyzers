@@ -1,0 +1,35 @@
+# NpgsqlAnalyzers regular pipeline
+# This pipeline is triggered for all regular branches, including /dev, and
+# ensures delivery of proper builds.
+
+name: 'CI pipeline'
+
+variables:
+  SrcDir: '$(Build.SourcesDirectory)/src'
+  BuildDir: '$(Build.BinariesDirectory)/publish'
+
+trigger:
+  branches:
+    include:
+    - '*'
+    exclude:
+    - master
+    - release/*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: NuGetCommand@2
+  displayName: 'Restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(SrcDir)/NpgsqlAnalyzers.sln'
+    feedsToUse: 'select'
+
+- script: >
+    dotnet build
+    --configuration Release
+    --output '$(BuildDir)'
+    '$(SrcDir)/NpgsqlAnalyzers.sln'
+  displayName: 'Build solution'

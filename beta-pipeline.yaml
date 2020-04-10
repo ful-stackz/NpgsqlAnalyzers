@@ -1,0 +1,105 @@
+# NpgsqlAnalyzers beta releases pipeline
+# This pipeline is triggered for the /master branch and creates beta releases.
+# The package built in this pipeline is pushed to the local Azure DevOps package feed.
+
+name: 'Beta releases'
+
+variables:
+  SrcDir: '$(Build.SourcesDirectory)/src'
+  BuildDir: '$(Build.BinariesDirectory)/publish'
+  PackDir: '$(Build.BinariesDirectory)/pack'
+  RepackDir: '$(Build.BinariesDirectory)/repack'
+  PackageOutputDir: '$(Agent.ArtifactStagingDirectory)'
+  VersionFilePath: '$(Build.SourcesDirectory)/build/version.txt'
+  TargetBuildVersion: '0.0.0'
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: NuGetCommand@2
+  displayName: 'Restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(SrcDir)/NpgsqlAnalyzers.sln'
+    feedsToUse: 'select'
+
+- task: PowerShell@2
+  displayName: 'Set build version'
+  inputs:
+    targetType: 'inline'
+    script: |
+      if (!(Test-Path -Path '$(VersionFilePath)' -PathType Leaf)) {
+        Write-Error "Version file not found in path '$(VersionFilePath)'"
+        return
+      }
+      $version = (Get-Content -Path '$(VersionFilePath)') + "-beta-" + $(Build.BuildId)
+      Write-Host "##vso[task.setvariable variable=TargetBuildVersion]$version"
+      Write-Host "TargetBuildVersion set to $version"
+
+- script: >
+    dotnet publish
+    --configuration Release
+    --output '$(BuildDir)'
+    -p:version=$(TargetBuildVersion)
+    '$(SrcDir)/NpgsqlAnalyzers/NpgsqlAnalyzers.csproj'
+  displayName: 'Build solution'
+
+- script: >
+    dotnet pack
+    --configuration Release
+    --output '$(PackDir)'
+    -p:version=$(TargetBuildVersion)
+    '$(SrcDir)/NpgsqlAnalyzers/NpgsqlAnalyzers.csproj'
+  displayName: 'Create initial package'
+
+- task: ExtractFiles@1
+  displayName: 'Extract package'
+  inputs:
+    archiveFilePatterns: '$(PackDir)/*.nupkg'
+    destinationFolder: '$(RepackDir)/'
+    cleanDestinationFolder: true
+
+- task: CopyFiles@2
+  displayName: 'Copy dependency binaries into package/lib'
+  inputs:
+    SourceFolder: '$(BuildDir)'
+    Contents: '**'
+    TargetFolder: '$(RepackDir)/lib/netstandard2.0/'
+    CleanTargetFolder: true
+
+- task: CopyFiles@2
+  displayName: 'Copy dependancy binaries into package/analyzers/dotnet/cs'
+  inputs:
+    SourceFolder: '$(BuildDir)'
+    Contents: '**'
+    TargetFolder: '$(RepackDir)/analyzers/dotnet/cs/'
+    CleanTargetFolder: true
+
+- task: ArchiveFiles@2
+  displayName: 'Repack package'
+  inputs:
+    rootFolderOrFile: '$(RepackDir)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(PackageOutputDir)/$(TargetBuildVersion).nupkg'
+    replaceExistingArchive: true
+
+- script: >
+    dotnet nuget
+    add source 'https://pkgs.dev.azure.com/ivanstoyanov0768/NpgsqlAnalyzers/_packaging/BetaReleases/nuget/v3/index.json'
+    --name 'NpgsqlAnalyzersBetaReleasesFeed'
+    --username 'ivan.stoyanov@esightmonitoring.nl'
+    --password '$(BetaPackagePublisherToken)'
+    --store-password-in-clear-text
+  displayName: 'Add package feed with authentication to source'
+
+- script: >
+    dotnet nuget push
+    --source 'NpgsqlAnalyzersBetaReleasesFeed'
+    --api-key $(BetaPackagePublisherToken)
+    '$(PackageOutputDir)/*.nupkg'
+  displayName: 'Publish package to Beta feed'

@@ -1,0 +1,97 @@
+# NpgsqlAnalyzers official releases pipeline
+# This pipeline is triggered for branches which are intended for official release and
+# follow the /release/* naming convention.
+# The package built in this pipeline is pushed directly to the NuGet package feed.
+
+name: 'Official releases'
+
+variables:
+  SrcDir: '$(Build.SourcesDirectory)/src'
+  BuildDir: '$(Build.BinariesDirectory)/publish'
+  PackDir: '$(Build.BinariesDirectory)/pack'
+  RepackDir: '$(Build.BinariesDirectory)/repack'
+  PackageOutputDir: '$(Agent.ArtifactStagingDirectory)'
+  VersionFilePath: '$(Build.SourcesDirectory)/build/version.txt'
+  TargetBuildVersion: '0.0.0'
+
+trigger:
+- release/*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: NuGetCommand@2
+  displayName: 'Restore packages'
+  inputs:
+    command: 'restore'
+    restoreSolution: '$(SrcDir)/NpgsqlAnalyzers.sln'
+    feedsToUse: 'select'
+
+- task: PowerShell@2
+  displayName: 'Set build version'
+  inputs:
+    targetType: 'inline'
+    script: |
+      if (!(Test-Path -Path '$(VersionFilePath)' -PathType Leaf)) {
+        Write-Error "Version file not found in path '$(VersionFilePath)'"
+        return
+      }
+      $version = (Get-Content -Path '$(VersionFilePath)')
+      Write-Host "##vso[task.setvariable variable=TargetBuildVersion]$version"
+      Write-Host "TargetBuildVersion set to $version"
+
+- script: >
+    dotnet publish
+    --configuration Release
+    --output '$(BuildDir)'
+    -p:version=$(TargetBuildVersion)
+    '$(SrcDir)/NpgsqlAnalyzers/NpgsqlAnalyzers.csproj'
+  displayName: 'Build solution'
+
+- script: >
+    dotnet pack
+    --configuration Release
+    --output '$(PackDir)'
+    -p:version=$(TargetBuildVersion)
+    '$(SrcDir)/NpgsqlAnalyzers/NpgsqlAnalyzers.csproj'
+  displayName: 'Create initial package'
+
+- task: ExtractFiles@1
+  displayName: 'Extract package'
+  inputs:
+    archiveFilePatterns: '$(PackDir)/*.nupkg'
+    destinationFolder: '$(RepackDir)/'
+    cleanDestinationFolder: true
+
+- task: CopyFiles@2
+  displayName: 'Copy dependency binaries into package/lib'
+  inputs:
+    SourceFolder: '$(BuildDir)'
+    Contents: '**'
+    TargetFolder: '$(RepackDir)/lib/netstandard2.0/'
+    CleanTargetFolder: true
+
+- task: CopyFiles@2
+  displayName: 'Copy dependancy binaries into package/analyzers/dotnet/cs'
+  inputs:
+    SourceFolder: '$(BuildDir)'
+    Contents: '**'
+    TargetFolder: '$(RepackDir)/analyzers/dotnet/cs/'
+    CleanTargetFolder: true
+
+- task: ArchiveFiles@2
+  displayName: 'Repack package'
+  inputs:
+    rootFolderOrFile: '$(RepackDir)'
+    includeRootFolder: false
+    archiveType: 'zip'
+    archiveFile: '$(PackageOutputDir)/$(TargetBuildVersion).nupkg'
+    replaceExistingArchive: true
+
+- script: >
+    dotnet nuget push
+    --source https://api.nuget.org/v3/index.json
+    --api-key $(NuGetPackagePublisherToken)
+    '$(Build.ArtifactStagingDirectory)/*.nupkg'
+  displayName: 'Publish package to NuGet'
