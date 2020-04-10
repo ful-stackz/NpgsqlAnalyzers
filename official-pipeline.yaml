@@ -14,8 +14,7 @@ variables:
   VersionFilePath: '$(Build.SourcesDirectory)/build/version.txt'
   TargetBuildVersion: '0.0.0'
 
-trigger:
-- release/*
+trigger: none
 
 pool:
   vmImage: 'ubuntu-latest'
