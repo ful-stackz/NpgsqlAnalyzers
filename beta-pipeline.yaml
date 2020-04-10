@@ -13,9 +13,7 @@ variables:
   VersionFilePath: '$(Build.SourcesDirectory)/build/version.txt'
   TargetBuildVersion: '0.0.0'
 
-trigger:
-- master
-
+trigger: none
 pr: none
 
 pool:
