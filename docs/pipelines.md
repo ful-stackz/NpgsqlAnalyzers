@@ -1,37 +1,30 @@
 # NpgsqlAnalyzer pipelines
 
-| Pipeline | Target branches | Tasks | Published package |
+| Pipeline | Triggers | Tasks | Published package |
 | :--- | :--- | :--- | :--- |
-| Regular | Include `*`<br/>Exclude `/master /release/*`| build, test | None |
-| Beta | `/master`<br/> | build, test, package | Beta version (Azure DevOps feed) |
-| Official | `/release/*` | build, test, package | Official version (NuGet feed) |
+| Regular | All branches | build, test | None |
+| Beta | Manual | build, test, package | Beta version (Azure DevOps feed) |
+| Official | Manual | build, test, package | Official version (NuGet feed) |
 
-## Usage examples
+## Regular pipeline
 
-### Implementing features, tasks, bug fixes
+The **_regular_** pipeline provides a standard CI workflow, ensuring all builds succeed and tests pass.
+This pipeline is triggered for new branches, branch updates and pull requests.
 
-1. Create branch `/feat/awesome-addition` from `/dev`
-2. Implement work
-3. Push to origin
-4. _Regular_ pipeline gets triggered for branch `/feat/awesome-addition`
-5. Create pull request into `/dev`
-6. Merge into `/dev`
-7. _Regular_ pipeline gets triggered for branch `/dev`
+## Beta releases pipeline
 
-### Beta releases
+The **_beta_** releases pipeline is _not_ triggered automatically and requires special permissions to trigger it manually.
 
-Beta releases are intended for limited, yet public access to unreleased package versions. These releases should not be used in production software as they are not intended to be retained for extended periods of time and will very often be deleted right after being officially released.
+Beta releases are intended for limited, yet public access to unreleased package versions through a private Azure DevOps feed.
+These releases should not be used in production code as they are not intended to be retained for extended periods of time and
+will very often be deleted right after being promoted to an official release.
 
-1. Create pull request from `/dev` to `/master`
-    - This is preferable, but any branch can be requested to be merged into `/master`, for example hot bug fixes.
-2. Merge into `/master`
-3. _Beta_ pipeline gets triggered
-4. A beta package gets published to the Azure DevOps feed
-   - The version of the package will be constructed from the `version.txt` file contained in the repository, which specifies the `(Major).(Minor).(Patch)` version, and the `-beta-(BuildNumber)` postfix. For example, `1.0.2-beta-3`
+Beta releases follow the standard [SemVer](https://semver.org/) versioning scheme, but are post-fixed to indicate
+their beta status. A beta release version has the following scheme `(Major).(Minor).(Patch)-beta-(BuildNumber)`.
 
-### Official releases
+## Official releases
 
-1. Create a new branch with the following name scheme `/release/(Major).(Minor).(Patch)` 
-3. _Official_ pipeline gets triggered
-4. An official package is built, tested and published to NuGet
-    - The version of the package will be the same as the version specified in the `version.txt` file, contained in the repository
+The **_official_** releases pipeline is _not_ triggered automatically and requires special permissions to trigger it manually.
+
+Successful runs of this pipeline result in a package published to the standard NuGet feed.
+Officially released packages follow the standard [SemVer](https://semver.org/) versioning scheme - `(Major).(Minor).(Patch)`.
