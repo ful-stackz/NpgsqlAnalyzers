@@ -16,6 +16,8 @@
     <Copyright>Copyright © 2020</Copyright>
     <PackageTags>analyzers</PackageTags>
     <NoPackageAnalysis>true</NoPackageAnalysis>
+    <RepositoryUrl>https://github.com/ful-stackz/NpgsqlAnalyzers</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
