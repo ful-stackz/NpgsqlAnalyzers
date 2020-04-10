@@ -8,7 +8,7 @@ variables:
   SrcDir: '$(Build.SourcesDirectory)/src'
   BuildDir: '$(Build.BinariesDirectory)/publish'
 
-trigger: '*'
+trigger: *
 
 pool:
   vmImage: 'ubuntu-latest'
