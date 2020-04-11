@@ -5,6 +5,20 @@
 
 name: 'Official releases'
 
+resources:
+  containers:
+    - container: postgres
+      image: postgres
+      ports:
+        - 5432:5432
+      env:
+        POSTGRES_DB: 'postgres'
+        POSTGRES_USER: 'postgres'
+        POSTGRES_PASSWORD: 'postgres'
+
+services:
+  postgres: postgres
+
 variables:
   SrcDir: '$(Build.SourcesDirectory)/src'
   BuildDir: '$(Build.BinariesDirectory)/publish'
@@ -48,6 +62,12 @@ steps:
     -p:version=$(TargetBuildVersion)
     '$(SrcDir)/NpgsqlAnalyzers/NpgsqlAnalyzers.csproj'
   displayName: 'Build solution'
+
+- script: >
+    dotnet test
+    --configuration Release
+    '$(SrcDir)/NpgsqlAnalyzers.sln'
+  displayName: 'Run tests'
 
 - script: >
     dotnet pack
