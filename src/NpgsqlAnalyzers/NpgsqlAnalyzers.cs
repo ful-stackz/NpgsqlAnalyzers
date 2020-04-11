@@ -31,11 +31,9 @@ namespace NpgsqlAnalyzers
 
         public override void Initialize(AnalysisContext context)
         {
-            if (string.IsNullOrWhiteSpace(Configuration.ConnectionString))
+            if (string.IsNullOrWhiteSpace(_connectionString))
             {
-                throw new InvalidOperationException(
-                    "Could not extract database connection string from " +
-                    $"environment variable '{Configuration.ConnectionStringEnvVar}'.");
+                throw new InvalidOperationException("Invalid connection string.");
             }
 
             context.EnableConcurrentExecution();
