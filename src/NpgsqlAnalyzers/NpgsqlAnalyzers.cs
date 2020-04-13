@@ -17,13 +17,15 @@ namespace NpgsqlAnalyzers
         private readonly string _connectionString;
 
         public NpgsqlAnalyzers()
+            : this(Configuration.ConnectionString)
         {
-            _connectionString = Configuration.ConnectionString;
         }
 
         public NpgsqlAnalyzers(string connectionString)
         {
-            _connectionString = connectionString;
+            _connectionString = string.IsNullOrWhiteSpace(connectionString)
+                ? throw new InvalidOperationException("Invalid connection string.")
+                : connectionString;
         }
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
@@ -31,11 +33,6 @@ namespace NpgsqlAnalyzers
 
         public override void Initialize(AnalysisContext context)
         {
-            if (string.IsNullOrWhiteSpace(_connectionString))
-            {
-                throw new InvalidOperationException("Invalid connection string.");
-            }
-
             context.EnableConcurrentExecution();
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
