@@ -181,10 +181,11 @@ namespace NpgsqlAnalyzers
                 switch (ex.SqlState)
                 {
                     case PostgresErrorCodes.UndefinedTable:
+                        string table = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
                         context.ReportDiagnostic(Diagnostic.Create(
                             descriptor: Rules.BadSqlStatement,
                             location: sourceLocation,
-                            $"The relation referenced at position '{ex.Position}' does not exist."));
+                            $"Table '{table}' does not exist."));
                         break;
 
                     default:

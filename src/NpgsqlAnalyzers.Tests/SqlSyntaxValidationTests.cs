@@ -15,19 +15,20 @@ namespace NpgsqlAnalyzers.Tests
         [Test]
         public void AssertNonExistentQueryDetectedInConstructor()
         {
-            string source = @"
+            const string TableName = "non_existent_table";
+            string source = @$"
 using Npgsql;
 
 namespace Testing
-{
+{{
     public class TestClass
-    {
+    {{
         public void TestMethod()
-        {
-            using var command = new NpgsqlCommand(""SELECT * FROM non_existent_table"");
-        }
-    }
-}
+        {{
+            using var command = new NpgsqlCommand(""SELECT * FROM {TableName}"");
+        }}
+    }}
+}}
 ";
 
             Diagnostics.AnalyzeSourceCode(
@@ -41,27 +42,28 @@ namespace Testing
                     {
                         new DiagnosticResultLocation("Test0.cs", 10, 33),
                     },
-                    Message = "The relation referenced at position '15' does not exist.",
+                    Message = $"Table '{TableName}' does not exist.",
                 });
         }
 
         [Test]
         public void AssertNonExistentTableDetectedInDeclaration()
         {
-            string source = @"
+            const string TableName = "bad_table";
+            string source = @$"
 using Npgsql;
 
 namespace Testing
-{
+{{
     public class TestClass
-    {
+    {{
         public void TestMethod()
-        {
-            string query = ""UPDATE bad_table SET id = 1 WHERE name = 'test';"";
+        {{
+            string query = ""UPDATE {TableName} SET id = 1 WHERE name = 'test';"";
             using var command = new NpgsqlCommand(query);
-        }
-    }
-}
+        }}
+    }}
+}}
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
@@ -74,30 +76,31 @@ namespace Testing
                     {
                         new DiagnosticResultLocation("Test0.cs", 10, 28),
                     },
-                    Message = "The relation referenced at position '8' does not exist.",
+                    Message = $"Table '{TableName}' does not exist.",
                 });
         }
 
         [Test]
         public void AssertNonExistentTableDetectedInReDeclaration()
         {
-            string source = @"
+            const string TableName = "bad_table";
+            string source = @$"
 using Npgsql;
 
 namespace Testing
-{
+{{
     public class TestClass
-    {
+    {{
         public void TestMethod()
-        {
+        {{
             string query = ""SELECT * FROM users;"";
             using var command = new NpgsqlCommand(query);
 
-            query = ""UPDATE bad_table SET id = 1 WHERE name = 'test';"";
+            query = ""UPDATE {TableName} SET id = 1 WHERE name = 'test';"";
             using var command = new NpgsqlCommand(query);
-        }
-    }
-}
+        }}
+    }}
+}}
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
@@ -110,7 +113,7 @@ namespace Testing
                     {
                         new DiagnosticResultLocation("Test0.cs", 13, 21),
                     },
-                    Message = "The relation referenced at position '8' does not exist.",
+                    Message = $"Table '{TableName}' does not exist.",
                 });
         }
 
