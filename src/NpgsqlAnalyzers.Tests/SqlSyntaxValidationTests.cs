@@ -7,7 +7,7 @@ using ThrowawayDb.Postgres;
 namespace NpgsqlAnalyzers.Tests
 {
     [TestFixture]
-    public class Tests : IDisposable
+    public class SqlSyntaxValidationTests : IDisposable
     {
         private readonly ThrowawayDatabase _database = Database.CreateDatabase();
         private bool _isDisposed;
