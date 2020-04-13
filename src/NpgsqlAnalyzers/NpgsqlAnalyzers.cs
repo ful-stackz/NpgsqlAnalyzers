@@ -14,18 +14,25 @@ namespace NpgsqlAnalyzers
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class NpgsqlAnalyzers : DiagnosticAnalyzer
     {
+        private readonly string _connectionString;
+
+        public NpgsqlAnalyzers()
+            : this(Configuration.ConnectionString)
+        {
+        }
+
+        public NpgsqlAnalyzers(string connectionString)
+        {
+            _connectionString = string.IsNullOrWhiteSpace(connectionString)
+                ? throw new InvalidOperationException("Invalid connection string.")
+                : connectionString;
+        }
+
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
             Rules.BadSqlStatement);
 
         public override void Initialize(AnalysisContext context)
         {
-            if (string.IsNullOrWhiteSpace(Configuration.ConnectionString))
-            {
-                throw new InvalidOperationException(
-                    "Could not extract database connection string from " +
-                    $"environment variable '{Configuration.ConnectionStringEnvVar}'.");
-            }
-
             context.EnableConcurrentExecution();
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
@@ -34,7 +41,7 @@ namespace NpgsqlAnalyzers
                 SyntaxKind.ObjectCreationExpression);
         }
 
-        private static void AnalyzeInvocationExpressionNode(SyntaxNodeAnalysisContext context)
+        private void AnalyzeInvocationExpressionNode(SyntaxNodeAnalysisContext context)
         {
             var semanticModel = context.SemanticModel;
             var npgsqlCommandExpression = (ObjectCreationExpressionSyntax)context.Node;
@@ -59,25 +66,18 @@ namespace NpgsqlAnalyzers
             }
         }
 
-        private static void AnalyzeInConstructorQueryDeclaration(
+        private void AnalyzeInConstructorQueryDeclaration(
             SyntaxNodeAnalysisContext context,
             ArgumentSyntax queryArgumentSyntax,
             ObjectCreationExpressionSyntax npgsqlCommandExpression)
         {
-            try
-            {
-                ExecuteQuery(ExtractQuery(queryArgumentSyntax.ToString()));
-            }
-            catch (Exception ex)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Rules.BadSqlStatement,
-                    npgsqlCommandExpression.GetLocation(),
-                    ex.Message));
-            }
+            ExecuteAndValidateQuery(
+                query: ExtractQuery(queryArgumentSyntax.ToString()),
+                context: context,
+                sourceLocation: npgsqlCommandExpression.GetLocation());
         }
 
-        private static void AnalyzeVarQueryDeclaration(
+        private void AnalyzeVarQueryDeclaration(
             SyntaxNodeAnalysisContext context,
             SemanticModel semanticModel,
             string variableName,
@@ -113,32 +113,22 @@ namespace NpgsqlAnalyzers
                 if (Math.Abs(npgsqlCommandLine - assignmentLine) < Math.Abs(npgsqlCommandLine - declarationLine))
                 {
                     // If re-assignment is closer to where the variable is used, analyze the re-assignment
-                    try
-                    {
-                        ExecuteQuery(ExtractQuery(variableAssignment.Right.ToString()));
-                    }
-                    catch (Exception ex)
-                    {
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            Rules.BadSqlStatement,
-                            variableAssignment.Right.GetLocation(),
-                            ex.Message));
-                    }
+                    ExecuteAndValidateQuery(
+                        query: ExtractQuery(variableAssignment.Right.ToString()),
+                        context: context,
+                        sourceLocation: variableAssignment.Right.GetLocation());
                     return;
                 }
             }
 
-            try
-            {
-                ExecuteQuery(ExtractQuery(variableDeclarator.Initializer.Value.ToString()));
-            }
-            catch (Exception ex)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Rules.BadSqlStatement,
-                    variableDeclarator.Initializer.GetLocation(),
-                    ex.Message));
-            }
+            ExecuteAndValidateQuery(
+                query: ExtractQuery(variableDeclarator.Initializer.Value.ToString()),
+                context: context,
+                sourceLocation: variableDeclarator.Initializer
+                    .ChildNodes()
+                    .OfType<LiteralExpressionSyntax>()
+                    .First()
+                    .GetLocation());
         }
 
         /// <summary>
@@ -174,12 +164,38 @@ namespace NpgsqlAnalyzers
         private static string ExtractQuery(string literal) =>
             ReplaceNamedParameters(SanitizeQuery(literal));
 
-        private static void ExecuteQuery(string query)
+        private void ExecuteAndValidateQuery(
+            string query,
+            SyntaxNodeAnalysisContext context,
+            Location sourceLocation)
         {
-            using var connection = new NpgsqlConnection(Configuration.ConnectionString);
-            connection.Open();
-            using var command = new NpgsqlCommand(query, connection);
-            command.ExecuteReader(CommandBehavior.SchemaOnly);
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                connection.Open();
+                using var command = new NpgsqlCommand(query, connection);
+                command.ExecuteReader(CommandBehavior.SchemaOnly);
+            }
+            catch (PostgresException ex)
+            {
+                switch (ex.SqlState)
+                {
+                    case PostgresErrorCodes.UndefinedTable:
+                        string table = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            descriptor: Rules.BadSqlStatement,
+                            location: sourceLocation,
+                            $"Table '{table}' does not exist."));
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                // Ignore
+            }
         }
     }
 }
