@@ -10,10 +10,10 @@ through the Azure DevOps private package feed.
 Beta releases are not intended for use in production code as their lifetime is
 short and they are not published with long-time support in mind.
 
-## Getting started
+## Get the package feed
 
-To be able to use beta releases you need to add the private Azure DevOps package
-feed to your project (or environment) and then add the package to your project.
+To be able to use beta releases, first you need to add the private beta package
+feed to your project or environment.
 
 ### Project scope
 
@@ -59,3 +59,38 @@ To remove the globally available package source execute the following command in
 ```
 dotnet nuget remove https://pkgs.dev.azure.com/ivanstoyanov0768/NpgsqlAnalyzers/_packaging/BetaReleases/nuget/v3/index.json
 ```
+
+## Install the package
+
+After making the the package feed available to your project or environment,
+installing the package is the same as usual. You can use your prefered method.
+
+Check out the available versions at the [feed source](https://dev.azure.com/ivanstoyanov0768/NpgsqlAnalyzers/_packaging?_a=package&feed=BetaReleases&package=NpgsqlAnalyzers&protocolType=NuGet&version=0.0.1-beta-44&view=versions).
+**Keep in mind** that beta versions are postfixed with `-beta-{build-number}`.
+
+### dotnet cli
+
+Execute the following command in your terminal:
+
+```
+dotnet add package NpgsqlAnalyzers --version 1.0.0-beta-1
+```
+
+### PackageReference
+
+Add the following line to your `.csproj` file:
+
+```
+<PackageReference Include="NpgsqlAnalyzers" Version="1.0.0-beta-1" />
+```
+
+### Visual Studio UI
+
+1. Open Visual Studio
+2. Go to `Projects` -> `Manage NuGet Packages...`
+3. Make sure that you have selected the NpgsqlAnalyzers beta feed
+    - Package source selector is located at the top right corner in the
+package manager
+4. If you don't see the package in the packages list, select the
+`Include prerelease` option
+    - The option is located next to the package search bar
