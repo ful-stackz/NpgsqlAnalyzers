@@ -29,7 +29,9 @@ namespace NpgsqlAnalyzers
         }
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-            Rules.BadSqlStatement);
+            Rules.BadSqlStatement,
+            Rules.UndefinedTable,
+            Rules.UndefinedColumn);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -183,12 +185,24 @@ namespace NpgsqlAnalyzers
                     case PostgresErrorCodes.UndefinedTable:
                         string table = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
                         context.ReportDiagnostic(Diagnostic.Create(
-                            descriptor: Rules.BadSqlStatement,
+                            descriptor: Rules.UndefinedTable,
                             location: sourceLocation,
-                            $"Table '{table}' does not exist."));
+                            messageArgs: table));
+                        break;
+
+                    case PostgresErrorCodes.UndefinedColumn:
+                        string column = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            descriptor: Rules.UndefinedColumn,
+                            location: sourceLocation,
+                            messageArgs: column));
                         break;
 
                     default:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            descriptor: Rules.BadSqlStatement,
+                            location: sourceLocation,
+                            ex.Message));
                         break;
                 }
             }
