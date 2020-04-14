@@ -1,4 +1,5 @@
 ﻿using Microsoft.CodeAnalysis;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace NpgsqlAnalyzers
 {
@@ -16,6 +17,14 @@ namespace NpgsqlAnalyzers
             id: "PSCA1001",
             title: "Undefined table.",
             messageFormat: "Table '{0}' does not exist.",
+            category: "Usage",
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
+
+        public static DiagnosticDescriptor UndefinedColumn { get; } = new DiagnosticDescriptor(
+            id: "PSCA1002",
+            title: "Undefined column.",
+            messageFormat: "Column '{0}' does not exist.",
             category: "Usage",
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);

@@ -29,7 +29,9 @@ namespace NpgsqlAnalyzers
         }
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
-            Rules.BadSqlStatement);
+            Rules.BadSqlStatement,
+            Rules.UndefinedTable,
+            Rules.UndefinedColumn);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -186,6 +188,14 @@ namespace NpgsqlAnalyzers
                             descriptor: Rules.UndefinedTable,
                             location: sourceLocation,
                             messageArgs: table));
+                        break;
+
+                    case PostgresErrorCodes.UndefinedColumn:
+                        string column = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            descriptor: Rules.UndefinedColumn,
+                            location: sourceLocation,
+                            messageArgs: column));
                         break;
 
                     default:
