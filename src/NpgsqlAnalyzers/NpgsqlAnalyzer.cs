@@ -12,16 +12,16 @@ using System.Text.RegularExpressions;
 namespace NpgsqlAnalyzers
 {
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
-    public class NpgsqlAnalyzers : DiagnosticAnalyzer
+    public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
         private readonly string _connectionString;
 
-        public NpgsqlAnalyzers()
+        public NpgsqlAnalyzer()
             : this(Configuration.ConnectionString)
         {
         }
 
-        public NpgsqlAnalyzers(string connectionString)
+        public NpgsqlAnalyzer(string connectionString)
         {
             _connectionString = string.IsNullOrWhiteSpace(connectionString)
                 ? throw new InvalidOperationException("Invalid connection string.")

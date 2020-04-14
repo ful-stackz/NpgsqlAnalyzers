@@ -33,7 +33,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzers(_database.ConnectionString),
+                new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
                     Id = "PSCA1000",
@@ -67,7 +67,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzers(_database.ConnectionString),
+                new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
                     Id = "PSCA1000",
@@ -104,7 +104,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzers(_database.ConnectionString),
+                new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
                     Id = "PSCA1000",
