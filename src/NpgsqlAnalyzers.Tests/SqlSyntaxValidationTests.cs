@@ -13,7 +13,7 @@ namespace NpgsqlAnalyzers.Tests
         private bool _isDisposed;
 
         [Test]
-        public void AssertNonExistentQueryDetectedInConstructor()
+        public void PSCA1001_DetectedInConstructor()
         {
             const string TableName = "non_existent_table";
             string source = @$"
@@ -47,7 +47,7 @@ namespace Testing
         }
 
         [Test]
-        public void AssertNonExistentTableDetectedInDeclaration()
+        public void PSCA1001_DetectedInVariableDeclaration()
         {
             const string TableName = "bad_table";
             string source = @$"
@@ -81,7 +81,7 @@ namespace Testing
         }
 
         [Test]
-        public void AssertNonExistentTableDetectedInReDeclaration()
+        public void PSCA1001_DetectedInVariableReDeclaration()
         {
             const string TableName = "bad_table";
             string source = @$"
