@@ -183,9 +183,9 @@ namespace NpgsqlAnalyzers
                     case PostgresErrorCodes.UndefinedTable:
                         string table = Regex.Match(ex.Statement.SQL.Substring(ex.Position - 1), @"\w+").Value;
                         context.ReportDiagnostic(Diagnostic.Create(
-                            descriptor: Rules.BadSqlStatement,
+                            descriptor: Rules.UndefinedTable,
                             location: sourceLocation,
-                            $"Table '{table}' does not exist."));
+                            messageArgs: table));
                         break;
 
                     default:

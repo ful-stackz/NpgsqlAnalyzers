@@ -36,7 +36,7 @@ namespace Testing
                 new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
-                    Id = "PSCA1000",
+                    Id = "PSCA1001",
                     Severity = DiagnosticSeverity.Warning,
                     Locations = new DiagnosticResultLocation[]
                     {
@@ -70,7 +70,7 @@ namespace Testing
                 new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
-                    Id = "PSCA1000",
+                    Id = "PSCA1001",
                     Severity = DiagnosticSeverity.Warning,
                     Locations = new DiagnosticResultLocation[]
                     {
@@ -107,7 +107,7 @@ namespace Testing
                 new NpgsqlAnalyzer(_database.ConnectionString),
                 new DiagnosticResult
                 {
-                    Id = "PSCA1000",
+                    Id = "PSCA1001",
                     Severity = DiagnosticSeverity.Warning,
                     Locations = new DiagnosticResultLocation[]
                     {
