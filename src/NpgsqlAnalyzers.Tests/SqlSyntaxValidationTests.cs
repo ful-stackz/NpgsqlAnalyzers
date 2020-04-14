@@ -1,7 +1,7 @@
+using System;
 using Microsoft.CodeAnalysis;
 using NpgsqlAnalyzers.Tests.Utils;
 using NUnit.Framework;
-using System;
 using ThrowawayDb.Postgres;
 
 namespace NpgsqlAnalyzers.Tests
@@ -131,6 +131,7 @@ namespace Testing
                 {
                     _database.Dispose();
                 }
+
                 _isDisposed = true;
             }
         }

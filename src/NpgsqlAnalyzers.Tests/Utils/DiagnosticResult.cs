@@ -14,6 +14,7 @@ namespace NpgsqlAnalyzers.Tests.Utils
                 {
                     _locations = new DiagnosticResultLocation[] { };
                 }
+
                 return _locations;
             }
             set
