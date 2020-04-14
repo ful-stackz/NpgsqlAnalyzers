@@ -1,16 +1,11 @@
-using System;
 using NpgsqlAnalyzers.Tests.Utils;
 using NUnit.Framework;
-using ThrowawayDb.Postgres;
 
 namespace NpgsqlAnalyzers.Tests
 {
     [TestFixture]
-    public class RegressionTests : IDisposable
+    public class RegressionTests
     {
-        private static readonly ThrowawayDatabase _database = Database.CreateDatabase();
-        private bool _isDisposed;
-
         [Test]
         public void AssertGoodFullDatabaseQueryDoesntFail()
         {
@@ -59,28 +54,10 @@ namespace Testing
 }
             ";
 
+            using var database = Database.CreateDatabase();
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString));
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool isDisposing)
-        {
-            if (!_isDisposed)
-            {
-                if (isDisposing)
-                {
-                    _database.Dispose();
-                }
-
-                _isDisposed = true;
-            }
+                new NpgsqlAnalyzer(database.ConnectionString));
         }
     }
 }
