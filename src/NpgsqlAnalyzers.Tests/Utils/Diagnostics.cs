@@ -1,15 +1,15 @@
-﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Microsoft.CodeAnalysis.Text;
-using Npgsql;
-using NUnit.Framework;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Text;
+using Npgsql;
+using NUnit.Framework;
 
 namespace NpgsqlAnalyzers.Tests.Utils
 {
@@ -52,7 +52,7 @@ namespace NpgsqlAnalyzers.Tests.Utils
             DiagnosticAnalyzer analyzer,
             params DiagnosticResult[] expected)
         {
-            var diagnostics = GetDiagnostics(new [] { source }, analyzer);
+            var diagnostics = GetDiagnostics(new string[] { source }, analyzer);
             VerifyDiagnosticResults(diagnostics, analyzer, expected);
         }
 
@@ -115,7 +115,7 @@ namespace NpgsqlAnalyzers.Tests.Utils
                 Assert.Fail(
                     CreateErrorMessage(
                         header: "Mismatch between number of diagnostics returned.",
-                        expected:  $"Expected to find '{expectedCount}' diagnostics.",
+                        expected: $"Expected to find '{expectedCount}' diagnostics.",
                         actual: $"Found '{actualCount}' diagnostics.",
                         diagnostic: diagnosticsOutput));
             }
@@ -325,7 +325,8 @@ namespace NpgsqlAnalyzers.Tests.Utils
                         string resultMethodName = "GetCSharpResultAt";
                         var linePosition = diagnostics[i].Location.GetLineSpan().StartLinePosition;
 
-                        builder.AppendFormat("{0}({1}, {2}, {3}.{4})",
+                        builder.AppendFormat(
+                            "{0}({1}, {2}, {3}.{4})",
                             resultMethodName,
                             linePosition.Line + 1,
                             linePosition.Character + 1,
