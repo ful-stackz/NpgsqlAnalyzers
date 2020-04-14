@@ -189,6 +189,10 @@ namespace NpgsqlAnalyzers
                         break;
 
                     default:
+                        context.ReportDiagnostic(Diagnostic.Create(
+                            descriptor: Rules.BadSqlStatement,
+                            location: sourceLocation,
+                            ex.Message));
                         break;
                 }
             }
