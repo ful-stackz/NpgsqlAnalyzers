@@ -84,7 +84,7 @@ namespace NpgsqlAnalyzers
             // Check if object creation is NpgsqlCommand
             if (!(semanticModel.GetSymbolInfo(npgsqlCommandExpression).Symbol is IMethodSymbol methodSymbol) ||
                 methodSymbol.MethodKind != MethodKind.Constructor ||
-                !methodSymbol.ReceiverType.Name.Equals("NpgsqlCommand", StringComparison.OrdinalIgnoreCase))
+                !methodSymbol.ReceiverType.Name.Equals(nameof(NpgsqlCommand), StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
