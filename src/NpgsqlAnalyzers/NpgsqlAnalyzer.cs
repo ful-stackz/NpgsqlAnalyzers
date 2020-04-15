@@ -15,9 +15,6 @@ namespace NpgsqlAnalyzers
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
-        private const string StatementMissing = nameof(StatementMissing);
-        private const string StatementNotSupported = nameof(StatementNotSupported);
-
         private readonly string _connectionString;
 
         public NpgsqlAnalyzer()
