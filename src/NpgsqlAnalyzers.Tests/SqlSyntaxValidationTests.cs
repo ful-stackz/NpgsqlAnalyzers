@@ -257,6 +257,144 @@ namespace Testing
                 });
         }
 
+        [Test]
+        public void PSCA1002_DetectedInCommandTextProp()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            using var command = new NpgsqlCommand();
+            command.CommandText = ""SELECT {ColumnName} FROM users"";
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_database.ConnectionString),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 11, 35),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1002_DetectedInCommandTextPropAsVariable()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            string query = ""SELECT {ColumnName} FROM users"";
+            using var command = new NpgsqlCommand();
+            command.CommandText = query;
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_database.ConnectionString),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 10, 28),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1002_DetectedInCommandTextPropAsVariableRedeclaration()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            string query = ""SELECT id FROM users"";
+            using var command = new NpgsqlCommand();
+            query = ""SELECT {ColumnName} FROM users"";
+            command.CommandText = query;
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_database.ConnectionString),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 12, 21),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1100_DetectedMissingCommand()
+        {
+            string source = @"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void TestMethod()
+        {{
+            using var command = new NpgsqlCommand();
+        }}
+    }}
+}}
+";
+
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_database.ConnectionString),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1100",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 10, 33),
+                    },
+                    Message = "Provide a SQL statement via the constructor or the CommandText property.",
+                });
+        }
+
         public void Dispose()
         {
             Dispose(true);

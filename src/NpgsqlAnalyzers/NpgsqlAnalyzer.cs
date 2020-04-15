@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
@@ -14,6 +15,9 @@ namespace NpgsqlAnalyzers
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
+        private const string StatementMissing = nameof(StatementMissing);
+        private const string StatementNotSupported = nameof(StatementNotSupported);
+
         private readonly string _connectionString;
 
         public NpgsqlAnalyzer()
@@ -31,7 +35,8 @@ namespace NpgsqlAnalyzers
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
             Rules.BadSqlStatement,
             Rules.UndefinedTable,
-            Rules.UndefinedColumn);
+            Rules.UndefinedColumn,
+            Rules.MissingCommand);
 
         public override void Initialize(AnalysisContext context)
         {
@@ -55,7 +60,7 @@ namespace NpgsqlAnalyzers
         /// <returns>
         /// The pure query, without the enclosing quotes and @.
         /// </returns>
-        private static string SanitizeQuery(string queryLiteral) =>
+        private static string ExtractQuery(string queryLiteral) =>
             queryLiteral
                 .Trim()
                 .Substring(1) // Removes the @ or " at the start of the string definition
@@ -73,63 +78,162 @@ namespace NpgsqlAnalyzers
         private static string ReplaceNamedParameters(string query) =>
             Regex.Replace(query, @"@\w+", "NULL");
 
+        private static VariableDeclaratorSyntax FindVariableDeclaratorInNodes(
+            IEnumerable<SyntaxNode> nodes,
+            string variableName)
+        {
+            return nodes
+                .SelectMany(child => child.ChildNodes())
+                .OfType<LocalDeclarationStatementSyntax>()
+                .Select(localDeclaration => localDeclaration.Declaration)
+                .SelectMany(variableDeclaration => variableDeclaration.Variables)
+                .Where(variableDeclarator => variableDeclarator.Identifier.Text.Equals(variableName))
+                .FirstOrDefault();
+        }
+
+        private static IEnumerable<AssignmentExpressionSyntax> FindVariableAssignmentsInNodes(
+            IEnumerable<SyntaxNode> nodes,
+            Func<string, bool> matchVariableName)
+        {
+            return nodes
+                .SelectMany(node => node.ChildNodes())
+                .OfType<ExpressionStatementSyntax>()
+                .Select(expressionStatement => expressionStatement.Expression)
+                .Where(expression => expression.IsKind(SyntaxKind.SimpleAssignmentExpression))
+                .OfType<AssignmentExpressionSyntax>()
+                .Where(expression => matchVariableName(expression.Left.ToString()));
+        }
+
+        private static IEnumerable<AssignmentExpressionSyntax> FindVariableAssignmentsInNodes(
+            IEnumerable<SyntaxNode> nodes,
+            string variableName)
+        {
+            return nodes
+                .SelectMany(node => node.ChildNodes())
+                .OfType<ExpressionStatementSyntax>()
+                .Select(expressionStatement => expressionStatement.Expression)
+                .Where(expression => expression.IsKind(SyntaxKind.SimpleAssignmentExpression))
+                .OfType<AssignmentExpressionSyntax>()
+                .Where(expression => expression.Left.ToString().Equals(variableName));
+        }
+
         private static SqlStatement ExtractSqlStatement(
             SyntaxNodeAnalysisContext context,
             ObjectCreationExpressionSyntax npgsqlCommandCtor)
         {
+            if (!npgsqlCommandCtor.ArgumentList.Arguments.Any())
+            {
+                /**
+                 * Query is not passed through the constructor,
+                 * therefore it might be assigned to the CommandText prop
+                 */
+                var commandTextAssignment = FindVariableAssignmentsInNodes(
+                    npgsqlCommandCtor.Ancestors(),
+                    name => name.Contains($".{nameof(NpgsqlCommand.CommandText)}"))
+                    .FirstOrDefault();
+                if (commandTextAssignment is null)
+                {
+                    // Query is not assigned to the CommandText prop
+                    return SqlStatement.StatementNotFound;
+                }
+
+                if (commandTextAssignment.Right.IsKind(SyntaxKind.StringLiteralExpression))
+                {
+                    return new SqlStatement(
+                        statement: ExtractQuery(commandTextAssignment.Right.ToString()),
+                        location: commandTextAssignment.Right.GetLocation());
+                }
+                else if (commandTextAssignment.Right.IsKind(SyntaxKind.IdentifierName))
+                {
+                    var varDeclarator = FindVariableDeclaratorInNodes(
+                        nodes: npgsqlCommandCtor.Ancestors(),
+                        variableName: commandTextAssignment.Right.ToString());
+                    var varAssignments = FindVariableAssignmentsInNodes(
+                        nodes: npgsqlCommandCtor.Ancestors(),
+                        variableName: commandTextAssignment.Right.ToString());
+
+                    if (varAssignments.Any())
+                    {
+                        var declarationSymbol = context.SemanticModel.GetDeclaredSymbol(varDeclarator);
+                        int declarationLine = declarationSymbol.Locations.First().GetLineSpan().StartLinePosition.Line;
+                        int commandTextLine = commandTextAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
+                        var variableAssignment = varAssignments
+                            .OrderBy(assignment =>
+                            {
+                                int assignmentLine = assignment.GetLocation().GetLineSpan().StartLinePosition.Line;
+                                return Math.Abs(commandTextLine - assignmentLine);
+                            })
+                            .First();
+
+                        int assignmentLine = variableAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
+                        if (Math.Abs(commandTextLine - assignmentLine) < Math.Abs(commandTextLine - declarationLine))
+                        {
+                            return new SqlStatement(
+                                statement: ExtractQuery(variableAssignment.Right.ToString()),
+                                location: variableAssignment.Right.GetLocation());
+                        }
+                    }
+
+                    // The syntax used to assign a value to NpgsqlCommand.CommandText is not supported
+                    return new SqlStatement(
+                        statement: ExtractQuery(varDeclarator.Initializer.Value.ToString()),
+                        location: varDeclarator.Initializer.Value.GetLocation());
+                }
+
+                return default;
+            }
+
             var queryArgument = npgsqlCommandCtor.ArgumentList.Arguments.First();
             if (queryArgument.Expression.IsKind(SyntaxKind.StringLiteralExpression))
             {
                 // Query is defined in the constructor
                 return new SqlStatement(
-                    statement: SanitizeQuery(queryArgument.ToString()),
+                    statement: ExtractQuery(queryArgument.ToString()),
                     location: npgsqlCommandCtor.GetLocation());
             }
 
-            // Search for query declaration in ancestor variables
+            /**
+             * The first constructor argument is not a string literal containing the query,
+             * therefore we should search for a variable declaring the query
+             */
             string queryVariableName = queryArgument.ToString();
-            var variableDeclarator = context.Node
-                .Ancestors()
-                .SelectMany(a => a.ChildNodes())
-                .OfType<LocalDeclarationStatementSyntax>()
-                .Select(localDeclaration => localDeclaration.Declaration)
-                .Select(declaration => declaration.Variables.FirstOrDefault())
-                .OfType<VariableDeclaratorSyntax>()
-                .Where(declarator => declarator.Identifier.Text.Equals(queryVariableName, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
-            var declarationSymbol = context.SemanticModel.GetDeclaredSymbol(variableDeclarator);
 
-            var variableAssignment = context.Node
-                .Ancestors()
-                .SelectMany(a => a.ChildNodes())
-                .OfType<ExpressionStatementSyntax>()
-                .Where(e => e.Expression.Kind() == SyntaxKind.SimpleAssignmentExpression)
-                .Select(e => e.Expression)
-                .OfType<AssignmentExpressionSyntax>()
-                .Where(e => e.Left.ToString().Equals(queryVariableName, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
+            /**
+             * Variable declaration => string query = "";
+             * Variable assignment  => query = "assignment after being declared";
+             */
+            var variableDeclarator = FindVariableDeclaratorInNodes(context.Node.Ancestors(), queryVariableName);
+            var variableAssignments = FindVariableAssignmentsInNodes(context.Node.Ancestors(), queryVariableName);
 
-            if (variableAssignment is { })
+            if (variableAssignments.Any())
             {
+                /**
+                 * If there are any assignments that means the variable is reused, we should analyze the one that
+                 * is closest to the NpgsqlCommand constructor
+                 */
+                var declarationSymbol = context.SemanticModel.GetDeclaredSymbol(variableDeclarator);
                 int declarationLine = declarationSymbol.Locations.First().GetLineSpan().StartLinePosition.Line;
-                int assignmentLine = variableAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
                 int npgsqlCommandLine = npgsqlCommandCtor.GetLocation().GetLineSpan().StartLinePosition.Line;
+                var variableAssignment = variableAssignments
+                    .OrderBy(assignment =>
+                    {
+                        int assignmentLine = assignment.GetLocation().GetLineSpan().StartLinePosition.Line;
+                        return Math.Abs(npgsqlCommandLine - assignmentLine);
+                    })
+                    .First();
 
+                int assignmentLine = variableAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
                 if (Math.Abs(npgsqlCommandLine - assignmentLine) < Math.Abs(npgsqlCommandLine - declarationLine))
                 {
                     return new SqlStatement(
-                        statement: SanitizeQuery(variableAssignment.Right.ToString()),
+                        statement: ExtractQuery(variableAssignment.Right.ToString()),
                         location: variableAssignment.Right.GetLocation());
                 }
             }
 
             return new SqlStatement(
-                statement: SanitizeQuery(variableDeclarator.Initializer.Value.ToString()),
-                location: variableDeclarator.Initializer
-                    .ChildNodes()
-                    .OfType<LiteralExpressionSyntax>()
-                    .First()
-                    .GetLocation());
+                statement: ExtractQuery(variableDeclarator.Initializer.Value.ToString()),
+                location: variableDeclarator.Initializer.Value.GetLocation());
         }
 
         private void AnalyzeInvocationExpressionNode(SyntaxNodeAnalysisContext context)
@@ -152,6 +256,12 @@ namespace NpgsqlAnalyzers
                     query: ReplaceNamedParameters(statement.Statement),
                     context: context,
                     sourceLocation: statement.Location);
+            }
+            else if (statement.NotFound)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    descriptor: Rules.MissingCommand,
+                    location: npgsqlCommandExpression.GetLocation()));
             }
         }
 
