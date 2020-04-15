@@ -73,8 +73,64 @@ namespace NpgsqlAnalyzers
         private static string ReplaceNamedParameters(string query) =>
             Regex.Replace(query, @"@\w+", "NULL");
 
-        private static string ExtractQuery(string literal) =>
-            ReplaceNamedParameters(SanitizeQuery(literal));
+        private static SqlStatement ExtractSqlStatement(
+            SyntaxNodeAnalysisContext context,
+            ObjectCreationExpressionSyntax npgsqlCommandCtor)
+        {
+            var queryArgument = npgsqlCommandCtor.ArgumentList.Arguments.First();
+            if (queryArgument.Expression.IsKind(SyntaxKind.StringLiteralExpression))
+            {
+                // Query is defined in the constructor
+                return new SqlStatement(
+                    statement: SanitizeQuery(queryArgument.ToString()),
+                    location: npgsqlCommandCtor.GetLocation());
+            }
+
+            // Search for query declaration in ancestor variables
+            string queryVariableName = queryArgument.ToString();
+            var variableDeclarator = context.Node
+                .Ancestors()
+                .SelectMany(a => a.ChildNodes())
+                .OfType<LocalDeclarationStatementSyntax>()
+                .Select(localDeclaration => localDeclaration.Declaration)
+                .Select(declaration => declaration.Variables.FirstOrDefault())
+                .OfType<VariableDeclaratorSyntax>()
+                .Where(declarator => declarator.Identifier.Text.Equals(queryVariableName, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+            var declarationSymbol = context.SemanticModel.GetDeclaredSymbol(variableDeclarator);
+
+            var variableAssignment = context.Node
+                .Ancestors()
+                .SelectMany(a => a.ChildNodes())
+                .OfType<ExpressionStatementSyntax>()
+                .Where(e => e.Expression.Kind() == SyntaxKind.SimpleAssignmentExpression)
+                .Select(e => e.Expression)
+                .OfType<AssignmentExpressionSyntax>()
+                .Where(e => e.Left.ToString().Equals(queryVariableName, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+
+            if (variableAssignment is { })
+            {
+                int declarationLine = declarationSymbol.Locations.First().GetLineSpan().StartLinePosition.Line;
+                int assignmentLine = variableAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
+                int npgsqlCommandLine = npgsqlCommandCtor.GetLocation().GetLineSpan().StartLinePosition.Line;
+
+                if (Math.Abs(npgsqlCommandLine - assignmentLine) < Math.Abs(npgsqlCommandLine - declarationLine))
+                {
+                    return new SqlStatement(
+                        statement: SanitizeQuery(variableAssignment.Right.ToString()),
+                        location: variableAssignment.Right.GetLocation());
+                }
+            }
+
+            return new SqlStatement(
+                statement: SanitizeQuery(variableDeclarator.Initializer.Value.ToString()),
+                location: variableDeclarator.Initializer
+                    .ChildNodes()
+                    .OfType<LiteralExpressionSyntax>()
+                    .First()
+                    .GetLocation());
+        }
 
         private void AnalyzeInvocationExpressionNode(SyntaxNodeAnalysisContext context)
         {
@@ -89,81 +145,14 @@ namespace NpgsqlAnalyzers
                 return;
             }
 
-            // Get first arg for constructor, which is the query
-            var queryArgument = npgsqlCommandExpression.ArgumentList.Arguments.First();
-            if (queryArgument.Expression.IsKind(SyntaxKind.StringLiteralExpression))
+            var statement = ExtractSqlStatement(context, npgsqlCommandExpression);
+            if (statement.IsValid)
             {
-                AnalyzeInConstructorQueryDeclaration(context, queryArgument, npgsqlCommandExpression);
+                ExecuteAndValidateQuery(
+                    query: ReplaceNamedParameters(statement.Statement),
+                    context: context,
+                    sourceLocation: statement.Location);
             }
-            else
-            {
-                AnalyzeVarQueryDeclaration(context, semanticModel, queryArgument.ToString(), npgsqlCommandExpression);
-            }
-        }
-
-        private void AnalyzeInConstructorQueryDeclaration(
-            SyntaxNodeAnalysisContext context,
-            ArgumentSyntax queryArgumentSyntax,
-            ObjectCreationExpressionSyntax npgsqlCommandExpression)
-        {
-            ExecuteAndValidateQuery(
-                query: ExtractQuery(queryArgumentSyntax.ToString()),
-                context: context,
-                sourceLocation: npgsqlCommandExpression.GetLocation());
-        }
-
-        private void AnalyzeVarQueryDeclaration(
-            SyntaxNodeAnalysisContext context,
-            SemanticModel semanticModel,
-            string variableName,
-            ObjectCreationExpressionSyntax npgsqlCommandExpression)
-        {
-            var variableDeclarator = context.Node
-                .Ancestors()
-                .SelectMany(a => a.ChildNodes())
-                .OfType<LocalDeclarationStatementSyntax>()
-                .Select(localDeclaration => localDeclaration.Declaration)
-                .Select(declaration => declaration.Variables.FirstOrDefault())
-                .OfType<VariableDeclaratorSyntax>()
-                .Where(declarator => declarator.Identifier.Text.Equals(variableName, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
-            var declarationSymbol = semanticModel.GetDeclaredSymbol(variableDeclarator);
-
-            var variableAssignment = context.Node
-                .Ancestors()
-                .SelectMany(a => a.ChildNodes())
-                .OfType<ExpressionStatementSyntax>()
-                .Where(e => e.Expression.Kind() == SyntaxKind.SimpleAssignmentExpression)
-                .Select(e => e.Expression)
-                .OfType<AssignmentExpressionSyntax>()
-                .Where(e => e.Left.ToString().Equals(variableName, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
-
-            if (variableAssignment is { })
-            {
-                int declarationLine = declarationSymbol.Locations.First().GetLineSpan().StartLinePosition.Line;
-                int assignmentLine = variableAssignment.GetLocation().GetLineSpan().StartLinePosition.Line;
-                int npgsqlCommandLine = npgsqlCommandExpression.GetLocation().GetLineSpan().StartLinePosition.Line;
-
-                if (Math.Abs(npgsqlCommandLine - assignmentLine) < Math.Abs(npgsqlCommandLine - declarationLine))
-                {
-                    // If re-assignment is closer to where the variable is used, analyze the re-assignment
-                    ExecuteAndValidateQuery(
-                        query: ExtractQuery(variableAssignment.Right.ToString()),
-                        context: context,
-                        sourceLocation: variableAssignment.Right.GetLocation());
-                    return;
-                }
-            }
-
-            ExecuteAndValidateQuery(
-                query: ExtractQuery(variableDeclarator.Initializer.Value.ToString()),
-                context: context,
-                sourceLocation: variableDeclarator.Initializer
-                    .ChildNodes()
-                    .OfType<LiteralExpressionSyntax>()
-                    .First()
-                    .GetLocation());
         }
 
         private void ExecuteAndValidateQuery(
