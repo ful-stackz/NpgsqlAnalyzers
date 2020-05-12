@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - Diagnostic PSCA1100 - Reports if an NpgsqlCommand has not been assigned a SQL statement
+- Configuration via .npgsqlanalyzers file
+- Added docs for the new configuration file
+
+### Fixed
+- Throws an error when a connection with the database could not be established,
+instead of failing silently
+
+### Removed
+- Providing connection string via an environment variable
 
 ## [0.0.1] - 14/4/2020
 ### Added
