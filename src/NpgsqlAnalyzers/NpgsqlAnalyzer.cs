@@ -62,7 +62,7 @@ namespace NpgsqlAnalyzers
                         .Where((line) => !string.IsNullOrWhiteSpace(line) && line.Contains("="))
                         .ToDictionary(
                             keySelector: (line) => line.Split('=')[0],
-                            elementSelector: (line) => line.Split('=')[1]);
+                            elementSelector: (line) => line.Split(new char[] { '=' }, 2)[1]);
                     Log("Loaded configuration properties:");
                     foreach (var kvp in config)
                     {
