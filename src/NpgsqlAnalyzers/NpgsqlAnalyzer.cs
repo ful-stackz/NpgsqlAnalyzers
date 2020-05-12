@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -15,11 +17,35 @@ namespace NpgsqlAnalyzers
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
+        private const string ConfigFileName = ".npgsqlanalyzers";
+        private const string ConnectionStringKey = "CONNECTION_STRING";
+
         private readonly string _connectionString;
 
         public NpgsqlAnalyzer()
-            : this(Configuration.ConnectionString)
         {
+            var caller = Assembly.GetCallingAssembly();
+            var configFilePath = Path.Combine(
+                Path.GetDirectoryName(caller.Location),
+                ConfigFileName);
+            if (!File.Exists(configFilePath))
+            {
+                throw new InvalidOperationException($"Could not find NpgsqlAnalyzers.config file at {configFilePath}.");
+            }
+
+            var config = File.ReadAllLines(configFilePath)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToDictionary(
+                    keySelector: (line) => line.Split('=')[0],
+                    elementSelector: (line) => line.Split('=')[1]);
+            if (!config.ContainsKey(ConnectionStringKey))
+            {
+                throw new InvalidOperationException($"Could not get CONNECTION_STRING config from {configFilePath}.");
+            }
+            else
+            {
+                _connectionString = config[ConnectionStringKey];
+            }
         }
 
         public NpgsqlAnalyzer(string connectionString)
@@ -301,10 +327,6 @@ namespace NpgsqlAnalyzers
                             ex.Message));
                         break;
                 }
-            }
-            catch (Exception)
-            {
-                // Ignore
             }
         }
     }
