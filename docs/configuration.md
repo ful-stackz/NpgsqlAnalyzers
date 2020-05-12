@@ -1,6 +1,9 @@
 # Configuring NpgsqlAnalyzers
 
 - [.npgsqlanalyzers config file](#config-file) (v0.0.2+)
+  - [Adding the config file to the project](#adding-the-config-file-to-the-project)
+  - [Format](#format)
+  - [Configuration options](#configuration-options)
 - [Environment varialbe](#environment-variable-deprecated) (v0.0.1)
 
 ## Config file
@@ -22,7 +25,6 @@ add the folowing to your `.csproj`
 
 The `.npgsqlanalyzers` config file accepts configuration options as single `KEY=VALUE` pairs per line.
 
-
 - The key/value pairs are separated by `=`
 - `#` at the beginning of the line indicates a comment-line; the line will not be processed
 - The key and the value are trimmed before usage
@@ -41,7 +43,6 @@ SPACED_KEY=Drunk  value
 # KEY = SPACED_KEY
 # VALUE = Drunk  value
 ```
-
 
 ### Configuration options
 
