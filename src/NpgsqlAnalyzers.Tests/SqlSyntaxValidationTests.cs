@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using NpgsqlAnalyzers.Tests.Utils;
 using NUnit.Framework;
@@ -9,8 +10,18 @@ namespace NpgsqlAnalyzers.Tests
     [TestFixture]
     public class SqlSyntaxValidationTests : IDisposable
     {
-        private readonly ThrowawayDatabase _database = Database.CreateDatabase();
+        private readonly ThrowawayDatabase _database;
+        private readonly Configuration _defaultConfiguration;
         private bool _isDisposed;
+
+        public SqlSyntaxValidationTests()
+        {
+            _database = Database.CreateDatabase();
+            _defaultConfiguration = new Configuration(new Dictionary<string, string>
+            {
+                ["CONNECTION_STRING"] = _database.ConnectionString,
+            });
+        }
 
         [Test]
         public void PSCA1001_DetectedInConstructor()
@@ -33,7 +44,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -67,7 +78,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -104,7 +115,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -138,7 +149,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -178,7 +189,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -234,7 +245,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -278,7 +289,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -313,7 +324,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -349,7 +360,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -382,7 +393,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1100",

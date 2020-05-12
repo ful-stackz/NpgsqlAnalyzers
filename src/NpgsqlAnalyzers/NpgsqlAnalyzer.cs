@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -18,19 +17,16 @@ namespace NpgsqlAnalyzers
     public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
         private const string ConfigFileName = ".npgsqlanalyzers";
-        private const string ConnectionStringKey = "CONNECTION_STRING";
 
-        private string _connectionString;
+        private Configuration _configuration;
 
         public NpgsqlAnalyzer()
         {
         }
 
-        public NpgsqlAnalyzer(string connectionString)
+        public NpgsqlAnalyzer(Configuration configuration)
         {
-            _connectionString = string.IsNullOrWhiteSpace(connectionString)
-                ? throw new InvalidOperationException("Invalid connection string.")
-                : connectionString;
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
@@ -46,41 +42,19 @@ namespace NpgsqlAnalyzers
 
             context.RegisterCompilationStartAction((compilationContext) =>
             {
-                if (string.IsNullOrEmpty(_connectionString))
+                if (_configuration is null)
                 {
                     var configFile = compilationContext.Options.AdditionalFiles.FirstOrDefault(
-                        file => Path.GetFileName(file.Path).Equals(".npgsqlanalyzers"));
+                        (file) => Path.GetFileName(file.Path).Equals(ConfigFileName));
                     if (configFile is null)
                     {
-                        Log("Configuration file not available!");
-                        throw new InvalidOperationException("Could not find configuration file.");
+                        throw new InvalidOperationException("Missing configuration file.");
                     }
 
-                    var content = configFile.GetText();
-                    var config = content.Lines
-                        .Select((line) => line.ToString())
-                        .Where((line) => !string.IsNullOrWhiteSpace(line) && line.Contains("="))
-                        .ToDictionary(
-                            keySelector: (line) => line.Split('=')[0],
-                            elementSelector: (line) => line.Split(new char[] { '=' }, 2)[1]);
-                    Log("Loaded configuration properties:");
-                    foreach (var kvp in config)
-                    {
-                        Log($"{kvp.Key} = {kvp.Value}");
-                    }
-
-                    if (config.ContainsKey(ConnectionStringKey))
-                    {
-                        _connectionString = config[ConnectionStringKey];
-                    }
-                    else
-                    {
-                        Log("Connection string not provided in config file.");
-                        throw new InvalidOperationException("Could not find connection string in configuration file.");
-                    }
+                    _configuration = Configuration.FromFile(
+                        configFile.GetText().Lines.Select(line => line.ToString()));
                 }
 
-                Log($"Using connection string: {_connectionString}");
                 compilationContext.RegisterSyntaxNodeAction(
                     AnalyzeInvocationExpressionNode,
                     SyntaxKind.ObjectCreationExpression);
@@ -321,7 +295,7 @@ namespace NpgsqlAnalyzers
         {
             try
             {
-                using var connection = new NpgsqlConnection(_connectionString);
+                using var connection = new NpgsqlConnection(_configuration.ConnectionString);
                 connection.Open();
                 using var command = new NpgsqlCommand(query, connection);
                 command.ExecuteReader(CommandBehavior.SchemaOnly);
