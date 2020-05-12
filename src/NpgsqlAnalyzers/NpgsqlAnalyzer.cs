@@ -20,8 +20,6 @@ namespace NpgsqlAnalyzers
         private const string ConfigFileName = ".npgsqlanalyzers";
         private const string ConnectionStringKey = "CONNECTION_STRING";
 
-        private static readonly string NewLine = Environment.NewLine;
-
         private readonly string _connectionString;
 
         public NpgsqlAnalyzer()
@@ -72,6 +70,7 @@ namespace NpgsqlAnalyzers
                     }
                 }
 
+                Log($"Using connection string: {_connectionString}");
                 compilationContext.RegisterSyntaxNodeAction(
                     AnalyzeInvocationExpressionNode,
                     SyntaxKind.ObjectCreationExpression);
