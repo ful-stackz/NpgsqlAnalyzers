@@ -20,32 +20,12 @@ namespace NpgsqlAnalyzers
         private const string ConfigFileName = ".npgsqlanalyzers";
         private const string ConnectionStringKey = "CONNECTION_STRING";
 
+        private static readonly string NewLine = Environment.NewLine;
+
         private readonly string _connectionString;
 
         public NpgsqlAnalyzer()
         {
-            var caller = Assembly.GetCallingAssembly();
-            var configFilePath = Path.Combine(
-                Path.GetDirectoryName(caller.Location),
-                ConfigFileName);
-            if (!File.Exists(configFilePath))
-            {
-                throw new InvalidOperationException($"Could not find NpgsqlAnalyzers.config file at {configFilePath}.");
-            }
-
-            var config = File.ReadAllLines(configFilePath)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToDictionary(
-                    keySelector: (line) => line.Split('=')[0],
-                    elementSelector: (line) => line.Split('=')[1]);
-            if (!config.ContainsKey(ConnectionStringKey))
-            {
-                throw new InvalidOperationException($"Could not get CONNECTION_STRING config from {configFilePath}.");
-            }
-            else
-            {
-                _connectionString = config[ConnectionStringKey];
-            }
         }
 
         public NpgsqlAnalyzer(string connectionString)
@@ -66,9 +46,46 @@ namespace NpgsqlAnalyzers
             context.EnableConcurrentExecution();
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
-            context.RegisterSyntaxNodeAction(
-                AnalyzeInvocationExpressionNode,
-                SyntaxKind.ObjectCreationExpression);
+            context.RegisterCompilationStartAction((compilationContext) =>
+            {
+                if (string.IsNullOrEmpty(_connectionString))
+                {
+                    var configFile = compilationContext.Options.AdditionalFiles.FirstOrDefault(
+                        file => Path.GetFileName(file.Path).Equals(".npgsqlanalyzers"));
+                    if (configFile is null)
+                    {
+                        Log("Configuration file not available!");
+                        throw new InvalidOperationException("Could not find configuration file.");
+                    }
+
+                    var content = configFile.GetText();
+                    var config = content.Lines
+                        .Select((line) => line.ToString())
+                        .Where((line) => !string.IsNullOrWhiteSpace(line) && line.Contains("="))
+                        .ToDictionary(
+                            keySelector: (line) => line.Split('=')[0],
+                            elementSelector: (line) => line.Split('=')[1]);
+                    Log("Loaded configuration properties:");
+                    foreach (var kvp in config)
+                    {
+                        Log($"{kvp.Key} = {kvp.Value}");
+                    }
+                }
+
+                compilationContext.RegisterSyntaxNodeAction(
+                    AnalyzeInvocationExpressionNode,
+                    SyntaxKind.ObjectCreationExpression);
+            });
+        }
+
+        private static void Log(string value)
+        {
+            var logFile = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                nameof(NpgsqlAnalyzer),
+                "log.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(logFile));
+            File.AppendAllText(logFile, $"{value}{Environment.NewLine}");
         }
 
         /// <summary>
