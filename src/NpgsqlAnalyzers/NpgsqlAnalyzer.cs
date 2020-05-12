@@ -20,7 +20,7 @@ namespace NpgsqlAnalyzers
         private const string ConfigFileName = ".npgsqlanalyzers";
         private const string ConnectionStringKey = "CONNECTION_STRING";
 
-        private readonly string _connectionString;
+        private string _connectionString;
 
         public NpgsqlAnalyzer()
         {
@@ -67,6 +67,16 @@ namespace NpgsqlAnalyzers
                     foreach (var kvp in config)
                     {
                         Log($"{kvp.Key} = {kvp.Value}");
+                    }
+
+                    if (config.ContainsKey(ConnectionStringKey))
+                    {
+                        _connectionString = config[ConnectionStringKey];
+                    }
+                    else
+                    {
+                        Log("Connection string not provided in config file.");
+                        throw new InvalidOperationException("Could not find connection string in configuration file.");
                     }
                 }
 
