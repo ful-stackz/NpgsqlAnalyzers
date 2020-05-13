@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
@@ -15,18 +16,17 @@ namespace NpgsqlAnalyzers
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class NpgsqlAnalyzer : DiagnosticAnalyzer
     {
-        private readonly string _connectionString;
+        private const string ConfigFileName = ".npgsqlanalyzers";
+
+        private Configuration _configuration;
 
         public NpgsqlAnalyzer()
-            : this(Configuration.ConnectionString)
         {
         }
 
-        public NpgsqlAnalyzer(string connectionString)
+        public NpgsqlAnalyzer(Configuration configuration)
         {
-            _connectionString = string.IsNullOrWhiteSpace(connectionString)
-                ? throw new InvalidOperationException("Invalid connection string.")
-                : connectionString;
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
@@ -40,9 +40,35 @@ namespace NpgsqlAnalyzers
             context.EnableConcurrentExecution();
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
 
-            context.RegisterSyntaxNodeAction(
-                AnalyzeInvocationExpressionNode,
-                SyntaxKind.ObjectCreationExpression);
+            context.RegisterCompilationStartAction((compilationContext) =>
+            {
+                if (_configuration is null)
+                {
+                    var configFile = compilationContext.Options.AdditionalFiles.FirstOrDefault(
+                        (file) => Path.GetFileName(file.Path).Equals(ConfigFileName));
+                    if (configFile is null)
+                    {
+                        throw new InvalidOperationException("Missing configuration file.");
+                    }
+
+                    _configuration = Configuration.FromFile(
+                        configFile.GetText().Lines.Select(line => line.ToString()));
+                }
+
+                compilationContext.RegisterSyntaxNodeAction(
+                    AnalyzeInvocationExpressionNode,
+                    SyntaxKind.ObjectCreationExpression);
+            });
+        }
+
+        private static void Log(string value)
+        {
+            var logFile = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                nameof(NpgsqlAnalyzer),
+                "log.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(logFile));
+            File.AppendAllText(logFile, $"{value}{Environment.NewLine}");
         }
 
         /// <summary>
@@ -269,7 +295,7 @@ namespace NpgsqlAnalyzers
         {
             try
             {
-                using var connection = new NpgsqlConnection(_connectionString);
+                using var connection = new NpgsqlConnection(_configuration.ConnectionString);
                 connection.Open();
                 using var command = new NpgsqlCommand(query, connection);
                 command.ExecuteReader(CommandBehavior.SchemaOnly);
@@ -301,10 +327,6 @@ namespace NpgsqlAnalyzers
                             ex.Message));
                         break;
                 }
-            }
-            catch (Exception)
-            {
-                // Ignore
             }
         }
     }
