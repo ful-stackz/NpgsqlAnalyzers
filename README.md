@@ -19,7 +19,7 @@ To be able to execute the queries against a real database, a connection string t
 
 ```
 <ItemGroup>
-    <AdditionalFile Include=".npgsqlanalyzers" />
+    <AdditionalFiles Include=".npgsqlanalyzers" />
 </ItemGroup>
 ```
 
