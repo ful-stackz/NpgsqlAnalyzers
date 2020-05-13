@@ -17,7 +17,7 @@ add the folowing to your `.csproj`
 
 ```
 <ItemGroup>
-    <AdditionalFile Include=".npgsqlanalyzers" />
+    <AdditionalFiles Include=".npgsqlanalyzers" />
 </ItemGroup>
 ```
 
