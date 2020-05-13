@@ -11,7 +11,7 @@ Static code analyzer which provides SQL syntax analysis in the comfort of your C
 
 ### 1. Add a configuration file to your project
 
-To be able to execute the queries against a real database, a connection string is required to said database is required. Provide the connection string to the `NpgsqlAnalyzers` through the `.npgsqlanalyzers` config file.
+To be able to execute the queries against a real database, a connection string to said database is required. Provide the connection string to the `NpgsqlAnalyzers` through the `.npgsqlanalyzers` config file.
 
 - Create a new `.npgsqlanalyzers` file
 - Add `CONNECTION_STRING=connection-string-to-your-database` in the file
