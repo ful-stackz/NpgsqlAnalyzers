@@ -113,5 +113,5 @@ steps:
     dotnet nuget push '$(PackageOutputDir)/$(TargetBuildVersion).nupkg'
     --source https://api.nuget.org/v3/index.json
     --api-key $(NuGetPackagePublisherToken)
-    --no-symbols
+    --no-symbols true
   displayName: 'Publish package to NuGet'
