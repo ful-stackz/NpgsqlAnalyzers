@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NpgsqlAnalyzers.Tests.Utils;
 using NUnit.Framework;
 
@@ -57,7 +58,11 @@ namespace Testing
             using var database = Database.CreateDatabase();
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(database.ConnectionString));
+                new NpgsqlAnalyzer(new Configuration(
+                    new Dictionary<string, string>
+                    {
+                        ["CONNECTION_STRING"] = database.ConnectionString,
+                    })));
         }
     }
 }

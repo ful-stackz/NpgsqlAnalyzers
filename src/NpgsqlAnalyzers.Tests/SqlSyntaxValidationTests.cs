@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 using NpgsqlAnalyzers.Tests.Utils;
 using NUnit.Framework;
@@ -9,8 +10,18 @@ namespace NpgsqlAnalyzers.Tests
     [TestFixture]
     public class SqlSyntaxValidationTests : IDisposable
     {
-        private readonly ThrowawayDatabase _database = Database.CreateDatabase();
+        private readonly ThrowawayDatabase _database;
+        private readonly Configuration _defaultConfiguration;
         private bool _isDisposed;
+
+        public SqlSyntaxValidationTests()
+        {
+            _database = Database.CreateDatabase();
+            _defaultConfiguration = new Configuration(new Dictionary<string, string>
+            {
+                ["CONNECTION_STRING"] = _database.ConnectionString,
+            });
+        }
 
         [Test]
         public void PSCA1001_DetectedInConstructor()
@@ -33,7 +44,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -67,7 +78,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -104,7 +115,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1001",
@@ -138,7 +149,7 @@ namespace Testing
 
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -178,7 +189,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -234,7 +245,7 @@ namespace Testing
 ";
             Diagnostics.AnalyzeSourceCode(
                 source,
-                new NpgsqlAnalyzer(_database.ConnectionString),
+                new NpgsqlAnalyzer(_defaultConfiguration),
                 new DiagnosticResult
                 {
                     Id = "PSCA1002",
@@ -254,6 +265,144 @@ namespace Testing
                         new DiagnosticResultLocation("Test0.cs", 22, 21),
                     },
                     Message = $"Column '{ColumnName}' does not exist.",
+                });
+        }
+
+        [Test]
+        public void PSCA1002_DetectedInCommandTextProp()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            using var command = new NpgsqlCommand();
+            command.CommandText = ""SELECT {ColumnName} FROM users"";
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_defaultConfiguration),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 11, 35),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1002_DetectedInCommandTextPropAsVariable()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            string query = ""SELECT {ColumnName} FROM users"";
+            using var command = new NpgsqlCommand();
+            command.CommandText = query;
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_defaultConfiguration),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 10, 28),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1002_DetectedInCommandTextPropAsVariableRedeclaration()
+        {
+            const string ColumnName = "bad_column";
+            string source = @$"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void CommandTextLiteral()
+        {{
+            string query = ""SELECT id FROM users"";
+            using var command = new NpgsqlCommand();
+            query = ""SELECT {ColumnName} FROM users"";
+            command.CommandText = query;
+        }}
+    }}
+}}
+";
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_defaultConfiguration),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1002",
+                    Message = $"Column '{ColumnName}' does not exist.",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 12, 21),
+                    },
+                });
+        }
+
+        [Test]
+        public void PSCA1100_DetectedMissingCommand()
+        {
+            string source = @"
+using Npgsql;
+
+namespace Testing
+{{
+    public class TestClass
+    {{
+        public void TestMethod()
+        {{
+            using var command = new NpgsqlCommand();
+        }}
+    }}
+}}
+";
+
+            Diagnostics.AnalyzeSourceCode(
+                source,
+                new NpgsqlAnalyzer(_defaultConfiguration),
+                new DiagnosticResult
+                {
+                    Id = "PSCA1100",
+                    Severity = DiagnosticSeverity.Warning,
+                    Locations = new DiagnosticResultLocation[]
+                    {
+                        new DiagnosticResultLocation("Test0.cs", 10, 33),
+                    },
+                    Message = "Provide a SQL statement via the constructor or the CommandText property.",
                 });
         }
 

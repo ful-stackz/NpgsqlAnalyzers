@@ -27,5 +27,13 @@ namespace NpgsqlAnalyzers
             category: "Usage",
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
+
+        public static DiagnosticDescriptor MissingCommand { get; } = new DiagnosticDescriptor(
+            id: "PSCA1100",
+            title: "Missing statement.",
+            messageFormat: "Provide a SQL statement via the constructor or the CommandText property.",
+            category: "Usage",
+            defaultSeverity: DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
     }
 }

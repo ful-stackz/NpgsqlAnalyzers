@@ -26,6 +26,9 @@ trigger:
   branches:
     include:
     - '*'
+  paths:
+    include:
+      - src/*
 
 pool:
   vmImage: 'ubuntu-latest'
